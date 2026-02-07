@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 
 const PROJECTS = [
   {
@@ -68,6 +68,7 @@ const EMAIL = "rohilpal9763@gmail.com";
 export default function App() {
   const [selectedProject, setSelectedProject] = useState(null);
   const [displayedProject, setDisplayedProject] = useState(null);
+  const [expandedProject, setExpandedProject] = useState(null);
   const [mounted, setMounted] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -75,12 +76,22 @@ export default function App() {
     setMounted(true);
   }, []);
 
-  // Handle smooth close animation by keeping content visible during transition
+  // Handle smooth open/close animation:
+  // Open: mount content immediately (displayedProject), then expand on next frame (expandedProject)
+  // Close: collapse first (expandedProject=null), then unmount content after transition (displayedProject)
   useEffect(() => {
     if (selectedProject) {
       setDisplayedProject(selectedProject);
+      // Delay expansion by one frame so the element is in the DOM at max-h-0 first
+      const raf = requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setExpandedProject(selectedProject);
+        });
+      });
+      return () => cancelAnimationFrame(raf);
     } else {
-      // Delay clearing displayed project to allow close animation
+      // Collapse immediately, then clear content after transition completes
+      setExpandedProject(null);
       const timer = setTimeout(() => setDisplayedProject(null), 300);
       return () => clearTimeout(timer);
     }
@@ -200,47 +211,79 @@ export default function App() {
 
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {PROJECTS.map((project, idx) => (
-                <button
-                  key={project.id}
-                  onClick={() => setSelectedProject(selectedProject === project.id ? null : project.id)}
-                  className={`group relative text-left p-5 rounded-2xl border transition-all duration-300 flex flex-col ${
-                    selectedProject === project.id
-                      ? "bg-gradient-to-br from-teal-50 to-cyan-50/50 border-teal-300 shadow-lg shadow-teal-100/50"
-                      : "bg-white/60 border-stone-200 hover:border-teal-300 hover:bg-white hover:shadow-md"
-                  }`}
-                  style={{ animationDelay: `${idx * 100}ms` }}
-                >
-                  <h3 className={`font-semibold text-[15px] mb-2 transition-colors truncate ${
-                    selectedProject === project.id ? "text-teal-700" : "text-stone-800 group-hover:text-teal-700"
-                  }`} title={project.title}>
-                    {project.title}
-                  </h3>
+                <React.Fragment key={project.id}>
+                  <button
+                    onClick={() => setSelectedProject(selectedProject === project.id ? null : project.id)}
+                    className={`group relative text-left p-5 rounded-2xl border transition-all duration-300 flex flex-col ${
+                      selectedProject === project.id
+                        ? "bg-gradient-to-br from-teal-50 to-cyan-50/50 border-teal-300 shadow-lg shadow-teal-100/50"
+                        : "bg-white/60 border-stone-200 hover:border-teal-300 hover:bg-white hover:shadow-md"
+                    }`}
+                    style={{ animationDelay: `${idx * 100}ms` }}
+                  >
+                    <h3 className={`font-semibold text-[15px] mb-2 transition-colors truncate ${
+                      selectedProject === project.id ? "text-teal-700" : "text-stone-800 group-hover:text-teal-700"
+                    }`} title={project.title}>
+                      {project.title}
+                    </h3>
 
-                  <p className="text-[11px] text-stone-400 mb-4">
-                    {project.company} · {project.period}
-                  </p>
+                    <p className="text-[11px] text-stone-400 mb-4">
+                      {project.company} · {project.period}
+                    </p>
 
-                  {/* Tech stack tags */}
-                  <div className="flex flex-wrap gap-1.5 mt-auto">
-                    {project.stack.map((tech) => (
-                      <span
-                        key={tech}
-                        className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
-                          selectedProject === project.id
-                            ? "bg-teal-100 text-teal-700"
-                            : "bg-stone-200/70 text-stone-600 group-hover:bg-teal-50 group-hover:text-teal-600"
-                        }`}
-                      >
-                        {tech}
-                      </span>
-                    ))}
+                    {/* Tech stack tags */}
+                    <div className="flex flex-wrap gap-1.5 mt-auto">
+                      {project.stack.map((tech) => (
+                        <span
+                          key={tech}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                            selectedProject === project.id
+                              ? "bg-teal-100 text-teal-700"
+                              : "bg-stone-200/70 text-stone-600 group-hover:bg-teal-50 group-hover:text-teal-600"
+                          }`}
+                        >
+                          {tech}
+                        </span>
+                      ))}
+                    </div>
+                  </button>
+
+                  {/* Mobile inline details panel — always in DOM for smooth transitions */}
+                  <div className={`sm:hidden col-span-full overflow-hidden transition-all duration-300 ease-out ${expandedProject === project.id ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                    {displayedProject === project.id && activeProject && (
+                      <div className="relative p-6 rounded-2xl bg-white border border-stone-200 shadow-sm">
+                        <button
+                          onClick={() => setSelectedProject(null)}
+                          className="absolute top-4 right-4 p-1.5 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
+                          aria-label="Close details"
+                        >
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                        <div>
+                          <h3 className="text-xl font-medium text-stone-800 mb-2">{activeProject.title}</h3>
+                          <p className="text-sm text-teal-600 mb-4">{activeProject.company} · {activeProject.period}</p>
+                          <p className="text-stone-600 leading-relaxed mb-6">{activeProject.summary}</p>
+                          <p className="text-[11px] uppercase tracking-[0.2em] text-stone-400 mb-4">Technical Highlights</p>
+                          <ul className="space-y-3">
+                            {activeProject.details.map((detail, i) => (
+                              <li key={i} className="flex gap-3 text-sm text-stone-600">
+                                <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-gradient-to-r from-teal-400 to-cyan-500 flex-shrink-0" />
+                                <span>{detail}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </button>
+                </React.Fragment>
               ))}
             </div>
 
-            {/* Project details panel */}
-            <div className={`overflow-hidden transition-all duration-300 ease-out ${selectedProject ? 'max-h-[500px] opacity-100 mt-6' : 'max-h-0 opacity-0 mt-0'}`}>
+            {/* Project details panel — tablet/desktop */}
+            <div className={`hidden sm:block overflow-hidden transition-all duration-300 ease-out ${expandedProject ? 'max-h-[500px] opacity-100 mt-6' : 'max-h-0 opacity-0 mt-0'}`}>
               {activeProject && (
                 <div className="relative p-6 rounded-2xl bg-white border border-stone-200 shadow-sm">
                   <button
@@ -313,9 +356,9 @@ export default function App() {
         </section>
 
         {/* CTA Section */}
-        <section className="border-t border-stone-200/60 py-20">
+        <section className="border-t border-stone-200/60 py-12 sm:py-20">
           <div className="max-w-6xl mx-auto px-6 lg:px-8">
-            <div className="max-w-2xl mx-auto text-center">
+            <div className="max-w-2xl mx-auto flex flex-col items-center text-center">
               <div className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full bg-emerald-50 border border-emerald-200">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
@@ -334,7 +377,7 @@ export default function App() {
 
               <button
                 onClick={copyEmail}
-                className="group inline-flex items-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-teal-500 to-cyan-600 text-white font-medium text-lg hover:shadow-xl hover:shadow-teal-500/25 transition-all hover:-translate-y-1"
+                className="group inline-flex items-center gap-3 px-5 sm:px-8 py-4 rounded-2xl bg-gradient-to-r from-teal-500 to-cyan-600 text-white font-medium text-lg hover:shadow-xl hover:shadow-teal-500/25 transition-all hover:-translate-y-1"
               >
                 {copied ? (
                   <>
